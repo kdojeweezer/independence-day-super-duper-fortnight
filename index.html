@@ -56,7 +56,7 @@
   <div class="nav-links">
     <a href="index.html" class="nav-link active">Today</a>
     <a href="listened.html" class="nav-link">Listened</a>
-    <a href="admin.html" class="nav-link">Edit</a>
+    <a href="admin.html" class="nav-link">Admin</a>
   </div>
 </nav>
 
@@ -90,9 +90,9 @@ function render() {
       <div class="hero">
         <div class="already-heard">
           ${all.length === 0
-            ? `No albums in your list yet.<br><a href="admin.html" class="text-accent">Add some in Edit →</a>`
+            ? `No albums in your list yet.<br><a href="admin.html" class="text-accent">Add some in Admin →</a>`
             : `You've listened to all ${heardCount} album${heardCount===1?'':'s'} in your list!<br>
-               <a href="admin.html" class="text-accent">Add more in Edit →</a> or
+               <a href="admin.html" class="text-accent">Add more in Admin →</a> or
                <a href="listened.html" class="text-accent">view your ratings</a>`
           }
         </div>
