@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Listened — Album of the Day</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .stats-row {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+    margin-bottom: 2.5rem;
+  }
+  .stat-box {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 4px; padding: 1rem 1.25rem;
+  }
+  .stat-val {
+    font-family: 'DM Serif Display', Georgia, serif; font-style: italic;
+    font-size: 32px; color: var(--text); line-height: 1; margin-bottom: 4px;
+  }
+  .stat-label { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+
+  .filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 1.5rem; align-items: center; }
+  .filter-btn {
+    font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: 0.08em;
+    text-transform: uppercase; background: transparent;
+    border: 1px solid var(--border); color: var(--muted);
+    padding: 6px 12px; cursor: pointer; border-radius: 2px;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .filter-btn:hover, .filter-btn.active { color: var(--text); border-color: var(--faint); }
+
+  .listened-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px;
+  }
+  .lcard {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 4px; padding: 1.25rem;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .lcard-artist { font-size: 11px; color: var(--accent); letter-spacing: 0.08em; text-transform: uppercase; }
+  .lcard-title { font-family: 'DM Serif Display', Georgia, serif; font-style: italic; font-size: 20px; line-height: 1.15; color: var(--text); }
+  .lcard-stars { display: flex; gap: 3px; }
+  .lcard-star { font-size: 14px; color: var(--accent); }
+  .lcard-star-empty { font-size: 14px; color: var(--faint); }
+  .lcard-review { font-size: 12px; color: var(--muted); line-height: 1.7; }
+  .lcard-date { font-size: 10px; color: var(--faint); margin-top: auto; }
+  .lcard-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; }
+
+  .sort-select { background: var(--input-bg); border: 1px solid var(--input-border); color: var(--text); font-family: 'DM Mono', monospace; font-size: 11px; padding: 6px 10px; border-radius: 2px; cursor: pointer; }
+
+  .empty { color: var(--muted); font-size: 13px; padding: 3rem 0; text-align: center; line-height: 2; }
+  .empty a { color: var(--accent); text-decoration: none; border-bottom: 1px solid var(--accent); }
+
+  /* edit overlay */
+  .overlay-bg {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 200; padding: 1.5rem;
+  }
+  .overlay {
+    background: var(--surface); border: 1px solid var(--border2);
+    border-radius: 6px; padding: 2rem; width: 100%; max-width: 460px;
+  }
+  .overlay-title { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); margin-bottom: 1.25rem; }
+  .overlay-stars { display: flex; gap: 6px; margin-bottom: 1rem; }
+  .overlay-star { font-size: 24px; cursor: pointer; color: var(--faint); background: none; border: none; transition: color 0.1s; line-height: 1; }
+  .overlay-star.on { color: var(--accent); }
+</style>
+</head>
+<body>
+<nav class="nav">
+  <a href="index.html" class="nav-brand" id="nav-title">Album of the Day</a>
+  <div class="nav-links">
+    <a href="index.html" class="nav-link">Today</a>
+    <a href="listened.html" class="nav-link active">Listened</a>
+    <a href="admin.html" class="nav-link">Admin</a>
+  </div>
+</nav>
+
+<div class="page-wide">
+  <div class="stats-row" id="stats-row"></div>
+
+  <div class="filters" id="filters">
+    <select class="sort-select" id="sort-sel" onchange="render()">
+      <option value="date-desc">Recent first</option>
+      <option value="date-asc">Oldest first</option>
+      <option value="rating-desc">Highest rated</option>
+      <option value="rating-asc">Lowest rated</option>
+      <option value="artist">Artist A–Z</option>
+    </select>
+    <span class="text-xs text-muted" style="margin-left:4px">Filter:</span>
+  </div>
+
+  <div class="listened-grid" id="grid"></div>
+</div>
+
+<div id="edit-overlay" style="display:none"></div>
+
+<script src="data.js"></script>
+<script>
+let activeTag = null;
+let editStar = 0;
+
+function init() {
+  const s = getSettings();
+  document.getElementById('nav-title').textContent = s.siteTitle || 'Album of the Day';
+  renderTagFilters();
+  render();
+}
+
+function renderTagFilters() {
+  const heard = getListened();
+  const tags = new Set();
+  Object.values(heard).forEach(h => (h.tags||[]).forEach(t => tags.add(t)));
+  const filtersEl = document.getElementById('filters');
+  // remove old tag btns
+  filtersEl.querySelectorAll('.tag-filter-btn').forEach(b => b.remove());
+  ['All', ...Array.from(tags).sort()].forEach(tag => {
+    const b = document.createElement('button');
+    b.className = 'filter-btn tag-filter-btn' + ((!activeTag && tag==='All') || activeTag===tag ? ' active' : '');
+    b.textContent = tag;
+    b.onclick = () => { activeTag = tag === 'All' ? null : tag; renderTagFilters(); render(); };
+    filtersEl.appendChild(b);
+  });
+}
+
+function render() {
+  const heard = getListened();
+  const albums = getAlbums();
+  const sort = document.getElementById('sort-sel').value;
+
+  let entries = Object.entries(heard).map(([id, h]) => {
+    const album = albums.find(a => a.id === id) || {};
+    return { id, ...h, artist: h.artist || album.artist || '', title: h.title || album.title || '', tags: h.tags || album.tags || [] };
+  });
+
+  if (activeTag) entries = entries.filter(e => (e.tags||[]).includes(activeTag));
+
+  entries.sort((a, b) => {
+    if (sort === 'date-desc') return new Date(b.date) - new Date(a.date);
+    if (sort === 'date-asc')  return new Date(a.date) - new Date(b.date);
+    if (sort === 'rating-desc') return (b.rating||0) - (a.rating||0);
+    if (sort === 'rating-asc')  return (a.rating||0) - (b.rating||0);
+    if (sort === 'artist') return (a.artist||'').localeCompare(b.artist||'');
+    return 0;
+  });
+
+  // stats
+  const avg = entries.length
+    ? (entries.reduce((s,e) => s + (e.rating||0), 0) / entries.length).toFixed(1)
+    : '—';
+  const top = [...entries].sort((a,b) => (b.rating||0)-(a.rating||0))[0];
+  document.getElementById('stats-row').innerHTML = `
+    <div class="stat-box"><div class="stat-val">${entries.length}</div><div class="stat-label">Listened</div></div>
+    <div class="stat-box"><div class="stat-val">${avg}</div><div class="stat-label">Avg Rating</div></div>
+    <div class="stat-box"><div class="stat-val" style="font-size:18px;padding-top:4px">${top ? top.title : '—'}</div><div class="stat-label">Top Rated</div></div>
+  `;
+
+  const grid = document.getElementById('grid');
+  if (!entries.length) {
+    grid.innerHTML = `<div class="empty" style="grid-column:1/-1">
+      Nothing logged yet.<br>
+      <a href="index.html">Go mark something as listened →</a>
+    </div>`;
+    return;
+  }
+
+  grid.innerHTML = entries.map(e => {
+    const stars = [1,2,3,4,5].map(n => `<span class="${n<=(e.rating||0)?'lcard-star':'lcard-star-empty'}">${n<=(e.rating||0)?'★':'☆'}</span>`).join('');
+    const date = e.date ? new Date(e.date).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}) : '';
+    const tagsHtml = (e.tags||[]).map(t=>`<span class="tag">${t}</span>`).join('');
+    return `
+      <div class="lcard fade">
+        <div class="lcard-artist">${e.artist}</div>
+        <div class="lcard-title">${e.title}</div>
+        ${tagsHtml ? `<div class="tags">${tagsHtml}</div>` : ''}
+        <div class="lcard-stars">${stars}</div>
+        ${e.review ? `<div class="lcard-review">${e.review}</div>` : ''}
+        <div class="lcard-footer">
+          <span class="lcard-date">${date}</span>
+          <div class="row gap-sm">
+            <button class="btn btn-sm" onclick="openEdit('${e.id}')">Edit</button>
+            <button class="btn btn-sm btn-danger" onclick="removeEntry('${e.id}')">✕</button>
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function removeEntry(id) {
+  if (!confirm('Remove this entry? The album stays in your list.')) return;
+  const l = getListened();
+  delete l[id];
+  saveListened(l);
+  renderTagFilters();
+  render();
+  toast('Removed');
+}
+
+function openEdit(id) {
+  const heard = getListened();
+  const e = heard[id];
+  if (!e) return;
+  editStar = e.rating || 0;
+
+  const overlay = document.getElementById('edit-overlay');
+  overlay.style.display = 'flex';
+  overlay.className = 'overlay-bg';
+  overlay.innerHTML = `
+    <div class="overlay">
+      <div class="overlay-title">Edit: ${e.title}</div>
+      <div class="field"><span class="label">Rating</span>
+        <div class="overlay-stars" id="ov-stars">${renderOvStars(editStar)}</div>
+      </div>
+      <div class="field"><span class="label">Notes</span>
+        <textarea id="ov-review">${e.review||''}</textarea>
+      </div>
+      <div class="row mt">
+        <button class="btn btn-accent" onclick="saveEdit('${id}')">Save →</button>
+        <button class="btn" onclick="closeEdit()">Cancel</button>
+      </div>
+    </div>`;
+  overlay.onclick = ev => { if (ev.target === overlay) closeEdit(); };
+}
+
+function renderOvStars(val) {
+  return [1,2,3,4,5].map(n =>
+    `<button class="overlay-star ${n<=val?'on':''}" onclick="setOvStar(${n})">${n<=val?'★':'☆'}</button>`
+  ).join('');
+}
+
+function setOvStar(n) {
+  editStar = n;
+  document.getElementById('ov-stars').innerHTML = renderOvStars(n);
+}
+
+function saveEdit(id) {
+  const review = document.getElementById('ov-review').value.trim();
+  const l = getListened();
+  if (l[id]) { l[id].rating = editStar; l[id].review = review; }
+  saveListened(l);
+  closeEdit();
+  render();
+  toast('Saved ✓');
+}
+
+function closeEdit() {
+  document.getElementById('edit-overlay').style.display = 'none';
+}
+
+function toast(msg) {
+  const t = document.createElement('div');
+  t.className = 'toast'; t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 2200);
+}
+
+init();
+</script>
+</body>
+</html>

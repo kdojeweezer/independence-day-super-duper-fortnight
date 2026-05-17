@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Album of the Day</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .hero { padding: 4rem 0 2rem; }
+  .hero-num { font-size: 11px; color: var(--muted); letter-spacing: 0.1em; margin-bottom: 1.2rem; }
+  .hero-artist { font-size: 12px; color: var(--accent); letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 0.4rem; }
+  .hero-title {
+    font-family: 'DM Serif Display', Georgia, serif; font-style: italic;
+    font-size: clamp(36px, 9vw, 60px); line-height: 1.05;
+    color: var(--text); margin-bottom: 1.75rem;
+  }
+  .hero-note {
+    font-size: 14px; line-height: 1.9; color: var(--muted);
+    border-left: 2px solid var(--border); padding-left: 1.25rem;
+    margin-bottom: 2rem;
+  }
+  .custom-fields { margin-bottom: 2rem; }
+  .cf-row {
+    display: flex; justify-content: space-between;
+    padding: 7px 0; border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+  .cf-row:last-child { border-bottom: none; }
+  .cf-label { color: var(--muted); font-size: 11px; letter-spacing: 0.06em; }
+  .cf-value { color: var(--text); }
+
+  .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .listened-form { margin-top: 2rem; }
+  .lf-inner {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 4px; padding: 1.25rem 1.5rem;
+  }
+  .lf-title { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-bottom: 1rem; }
+
+  .already-heard {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 4px; padding: 1.5rem; text-align: center;
+    color: var(--muted); font-size: 13px; line-height: 2;
+  }
+  .pool-count { font-size: 11px; color: var(--muted); margin-top: 1rem; }
+
+  .footer-bar {
+    display: flex; justify-content: space-between; align-items: center;
+    border-top: 1px solid var(--border); padding-top: 1rem; margin-top: 1.5rem;
+  }
+</style>
+</head>
+<body>
+<nav class="nav">
+  <a href="index.html" class="nav-brand" id="nav-title">Album of the Day</a>
+  <div class="nav-links">
+    <a href="index.html" class="nav-link active">Today</a>
+    <a href="listened.html" class="nav-link">Listened</a>
+    <a href="admin.html" class="nav-link">Admin</a>
+  </div>
+</nav>
+
+<div class="page">
+  <div id="root"></div>
+</div>
+
+<script src="data.js"></script>
+<script>
+let logOpen = false;
+let starVal = 0;
+let currentAlbum = null;
+
+function render() {
+  const settings = getSettings();
+  document.getElementById('nav-title').textContent = settings.siteTitle || 'Album of the Day';
+  document.title = settings.siteTitle || 'Album of the Day';
+
+  const album = getDailyAlbum();
+  currentAlbum = album;
+  const root = document.getElementById('root');
+  root.classList.remove('fade');
+  void root.offsetWidth;
+  root.classList.add('fade');
+
+  if (!album) {
+    const all = getAlbums();
+    const heard = getListened();
+    const heardCount = Object.keys(heard).length;
+    root.innerHTML = `
+      <div class="hero">
+        <div class="already-heard">
+          ${all.length === 0
+            ? `No albums in your list yet.<br><a href="admin.html" class="text-accent">Add some in Admin →</a>`
+            : `You've listened to all ${heardCount} album${heardCount===1?'':'s'} in your list!<br>
+               <a href="admin.html" class="text-accent">Add more in Admin →</a> or
+               <a href="listened.html" class="text-accent">view your ratings</a>`
+          }
+        </div>
+      </div>`;
+    return;
+  }
+
+  const heard = getListened();
+  const pool = getAlbums().filter(a => !heard[a.id]);
+  const customFields = (settings.customFields || []).filter(f => album.fields && album.fields[f.key]);
+  const tagsHtml = (album.tags||[]).map(t=>`<span class="tag">${t}</span>`).join('');
+  const cfHtml = customFields.map(f=>`
+    <div class="cf-row">
+      <span class="cf-label">${f.label}</span>
+      <span class="cf-value">${album.fields[f.key]}</span>
+    </div>`).join('');
+  const interval = settings.interval == 2 ? 'every 2 days' : 'daily';
+
+  root.innerHTML = `
+    <div class="hero">
+      <div class="hero-num">${pool.indexOf(album)+1} of ${pool.length} unheard</div>
+      <div class="hero-artist">${album.artist}</div>
+      <div class="hero-title">${album.title}</div>
+      ${tagsHtml ? `<div class="tags" style="margin-bottom:1.5rem">${tagsHtml}</div>` : ''}
+      ${album.note ? `<div class="hero-note">${album.note}</div>` : ''}
+      ${cfHtml ? `<div class="custom-fields">${cfHtml}</div>` : ''}
+
+      <div class="actions">
+        <button class="btn btn-accent" onclick="toggleLog()">✓ Mark as listened</button>
+        <button class="btn" onclick="showRandom()">Random →</button>
+      </div>
+
+      <div class="listened-form" id="log-form" style="display:none">
+        <div class="lf-inner">
+          <div class="lf-title">Log this listen</div>
+          <div class="field">
+            <span class="label">Rating</span>
+            <div class="stars mt" id="stars-row"></div>
+          </div>
+          <div class="field">
+            <span class="label">Notes</span>
+            <textarea id="log-review" placeholder="Thoughts..."></textarea>
+          </div>
+          <div class="row mt">
+            <button class="btn btn-accent" onclick="submitLog()">Save →</button>
+            <button class="btn" onclick="toggleLog()">Cancel</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer-bar">
+        <span class="text-xs text-muted">Rotates ${interval}</span>
+      </div>
+    </div>`;
+
+  renderStars(0);
+}
+
+function renderStars(val) {
+  starVal = val;
+  const row = document.getElementById('stars-row');
+  if (!row) return;
+  row.innerHTML = [1,2,3,4,5].map(n =>
+    `<button class="star ${n<=val?'on':''}" onclick="renderStars(${n})">${n<=val?'★':'☆'}</button>`
+  ).join('');
+}
+
+function toggleLog() {
+  logOpen = !logOpen;
+  const f = document.getElementById('log-form');
+  if (f) { f.style.display = logOpen ? 'block' : 'none'; if (logOpen) renderStars(0); }
+}
+
+function submitLog() {
+  if (!currentAlbum) return;
+  const review = document.getElementById('log-review')?.value.trim() || '';
+  const listened = getListened();
+  listened[currentAlbum.id] = {
+    rating: starVal,
+    review,
+    date: new Date().toISOString(),
+    artist: currentAlbum.artist,
+    title: currentAlbum.title,
+    tags: currentAlbum.tags || [],
+  };
+  saveListened(listened);
+  toast('Logged ✓');
+  render();
+}
+
+function showRandom() {
+  const heard = getListened();
+  const pool = getAlbums().filter(a => !heard[a.id]);
+  if (pool.length < 2) return;
+  let idx = Math.floor(Math.random() * pool.length);
+  currentAlbum = pool[idx];
+
+  const root = document.getElementById('root');
+  root.classList.remove('fade');
+  void root.offsetWidth;
+  root.classList.add('fade');
+
+  // re-render with this album forced
+  const settings = getSettings();
+  const customFields = (settings.customFields || []).filter(f => currentAlbum.fields && currentAlbum.fields[f.key]);
+  const tagsHtml = (currentAlbum.tags||[]).map(t=>`<span class="tag">${t}</span>`).join('');
+  const cfHtml = customFields.map(f=>`
+    <div class="cf-row">
+      <span class="cf-label">${f.label}</span>
+      <span class="cf-value">${currentAlbum.fields[f.key]}</span>
+    </div>`).join('');
+
+  root.innerHTML = `
+    <div class="hero">
+      <div class="hero-num">${idx+1} of ${pool.length} unheard</div>
+      <div class="hero-artist">${currentAlbum.artist}</div>
+      <div class="hero-title">${currentAlbum.title}</div>
+      ${tagsHtml ? `<div class="tags" style="margin-bottom:1.5rem">${tagsHtml}</div>` : ''}
+      ${currentAlbum.note ? `<div class="hero-note">${currentAlbum.note}</div>` : ''}
+      ${cfHtml ? `<div class="custom-fields">${cfHtml}</div>` : ''}
+      <div class="actions">
+        <button class="btn btn-accent" onclick="toggleLog()">✓ Mark as listened</button>
+        <button class="btn" onclick="showRandom()">Random →</button>
+      </div>
+      <div class="listened-form" id="log-form" style="display:none">
+        <div class="lf-inner">
+          <div class="lf-title">Log this listen</div>
+          <div class="field"><span class="label">Rating</span><div class="stars mt" id="stars-row"></div></div>
+          <div class="field"><span class="label">Notes</span><textarea id="log-review" placeholder="Thoughts..."></textarea></div>
+          <div class="row mt">
+            <button class="btn btn-accent" onclick="submitLog()">Save →</button>
+            <button class="btn" onclick="toggleLog()">Cancel</button>
+          </div>
+        </div>
+      </div>
+      <div class="footer-bar">
+        <span class="text-xs text-muted">Rotates ${settings.interval==2?'every 2 days':'daily'}</span>
+      </div>
+    </div>`;
+  logOpen = false;
+}
+
+function toast(msg) {
+  const t = document.createElement('div');
+  t.className = 'toast'; t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 2200);
+}
+
+render();
+</script>
+</body>
+</html>

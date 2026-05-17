@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin — Album of the Day</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .admin-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
+  @media (max-width: 700px) { .admin-grid { grid-template-columns: 1fr; } }
+
+  .album-list { margin-top: 1rem; }
+  .album-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 0; border-bottom: 1px solid var(--border);
+  }
+  .album-row:last-child { border-bottom: none; }
+  .album-row-info { flex: 1; min-width: 0; }
+  .album-row-title { font-size: 13px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .album-row-artist { font-size: 11px; color: var(--muted); }
+  .album-row-tags { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
+
+  .heard-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--success-text); flex-shrink: 0;
+  }
+  .unheard-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--faint); flex-shrink: 0;
+  }
+
+  .tag-input-wrap { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .tag-input-wrap input { flex: 1; min-width: 120px; }
+
+  .tag-suggestions {
+    display: flex; gap: 5px; flex-wrap: wrap; margin-top: 6px;
+  }
+  .tag-sug {
+    font-size: 11px; padding: 3px 8px; border-radius: 2px;
+    background: var(--surface2); color: var(--muted);
+    border: 1px solid var(--border); cursor: pointer;
+    transition: color 0.1s, border-color 0.1s;
+  }
+  .tag-sug:hover { color: var(--text); border-color: var(--faint); }
+
+  .cf-list { margin-top: 0.75rem; }
+  .cf-item {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 13px;
+  }
+  .cf-item:last-child { border-bottom: none; }
+
+  .settings-row { display: flex; gap: 10px; align-items: flex-end; }
+  .settings-row .field { flex: 1; margin-bottom: 0; }
+
+  .search-bar { margin-bottom: 1rem; }
+  .count-badge {
+    font-size: 10px; padding: 2px 7px; border-radius: 99px;
+    background: var(--surface2); color: var(--muted);
+    border: 1px solid var(--border); margin-left: 6px;
+  }
+
+  /* album form panel */
+  .form-panel {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 4px; padding: 1.5rem; margin-bottom: 1.5rem;
+  }
+  .form-panel-title {
+    font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--accent); margin-bottom: 1.25rem;
+  }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  @media (max-width: 500px) { .two-col { grid-template-columns: 1fr; } }
+
+  #import-area { font-size: 12px; min-height: 120px; }
+</style>
+</head>
+<body>
+<nav class="nav">
+  <a href="index.html" class="nav-brand" id="nav-title">Album of the Day</a>
+  <div class="nav-links">
+    <a href="index.html" class="nav-link">Today</a>
+    <a href="listened.html" class="nav-link">Listened</a>
+    <a href="admin.html" class="nav-link active">Admin</a>
+  </div>
+</nav>
+
+<div class="page-wide">
+
+  <!-- ── ADD / EDIT ALBUM ─────────────────────────────── -->
+  <div class="section-head">Add Album</div>
+  <div class="form-panel" id="album-form-panel">
+    <div class="form-panel-title" id="form-panel-title">New Album</div>
+    <input type="hidden" id="edit-id">
+    <div class="two-col">
+      <div class="field"><span class="label">Artist</span><input id="f-artist" placeholder="Artist name"></div>
+      <div class="field"><span class="label">Title</span><input id="f-title" placeholder="Album title"></div>
+    </div>
+    <div class="field">
+      <span class="label">Tags</span>
+      <div class="tag-input-wrap">
+        <input id="f-tag-input" placeholder="Type a tag and press Enter" onkeydown="tagKeydown(event)">
+      </div>
+      <div class="tags mt" id="f-tags-display"></div>
+      <div class="tag-suggestions" id="f-tag-suggestions"></div>
+    </div>
+    <div class="field"><span class="label">Notes</span><textarea id="f-note" placeholder="Short description or thoughts..."></textarea></div>
+    <div id="custom-field-inputs"></div>
+    <div class="row mt">
+      <button class="btn btn-accent" onclick="submitAlbum()">Save Album →</button>
+      <button class="btn" onclick="cancelEdit()" id="cancel-btn" style="display:none">Cancel</button>
+    </div>
+  </div>
+
+  <!-- ── ALBUM LIST ───────────────────────────────────── -->
+  <div class="section-head">
+    Albums
+    <span class="count-badge" id="album-count">0</span>
+  </div>
+  <div class="search-bar">
+    <input id="search" placeholder="Search albums..." oninput="renderAlbumList()">
+  </div>
+  <div class="album-list" id="album-list"></div>
+
+  <hr>
+
+  <!-- ── SETTINGS + CUSTOM FIELDS ─────────────────────── -->
+  <div class="admin-grid">
+    <div>
+      <div class="section-head">Site Settings</div>
+      <div class="field">
+        <span class="label">Site Title</span>
+        <input id="s-title" placeholder="Album of the Day" oninput="saveSettingsLive()">
+      </div>
+      <div class="field">
+        <span class="label">Rotation Interval</span>
+        <select id="s-interval" onchange="saveSettingsLive()">
+          <option value="1">Daily</option>
+          <option value="2">Every 2 days</option>
+        </select>
+      </div>
+
+      <div class="section-head" style="margin-top:2rem">Custom Fields</div>
+      <p class="text-xs text-muted" style="margin-bottom:1rem">Extra per-album fields (e.g. Year, Label, Mood). Shown on the display page.</p>
+      <div class="settings-row">
+        <div class="field"><span class="label">Field Label</span><input id="cf-label" placeholder="e.g. Year"></div>
+        <button class="btn btn-accent" onclick="addCustomField()" style="margin-bottom:1rem">Add</button>
+      </div>
+      <div class="cf-list" id="cf-list"></div>
+    </div>
+
+    <div>
+      <div class="section-head">Manage Tags</div>
+      <p class="text-xs text-muted" style="margin-bottom:1rem">Add or remove tags from the suggestions pool.</p>
+      <div class="row">
+        <input id="new-tag" placeholder="New tag..." onkeydown="if(event.key==='Enter')addGlobalTag()">
+        <button class="btn btn-accent" onclick="addGlobalTag()">Add</button>
+      </div>
+      <div class="tags mt" id="all-tags-display" style="margin-top:1rem"></div>
+
+      <div class="section-head" style="margin-top:2.5rem">Import / Export</div>
+      <p class="text-xs text-muted" style="margin-bottom:1rem">Paste JSON to import albums, or export your current list.</p>
+      <textarea id="import-area" placeholder='[{"artist":"...","title":"...","tags":[],"note":""}]'></textarea>
+      <div class="row mt">
+        <button class="btn" onclick="importAlbums()">Import JSON</button>
+        <button class="btn" onclick="exportAlbums()">Export JSON</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script src="data.js"></script>
+<script>
+// ── state ─────────────────────────────────────────────────
+let formTags = [];
+let editingId = null;
+
+// ── init ──────────────────────────────────────────────────
+function init() {
+  const s = getSettings();
+  document.getElementById('s-title').value = s.siteTitle || '';
+  document.getElementById('s-interval').value = s.interval || 1;
+  document.getElementById('nav-title').textContent = s.siteTitle || 'Album of the Day';
+  renderAlbumList();
+  renderCFList();
+  renderAllTags();
+  renderTagSuggestions();
+  renderCustomFieldInputs();
+}
+
+// ── settings ──────────────────────────────────────────────
+function saveSettingsLive() {
+  const title = document.getElementById('s-title').value.trim();
+  const interval = document.getElementById('s-interval').value;
+  mergeSettings({ siteTitle: title || 'Album of the Day', interval: parseInt(interval) });
+  document.getElementById('nav-title').textContent = title || 'Album of the Day';
+}
+
+// ── custom fields ─────────────────────────────────────────
+function addCustomField() {
+  const labelEl = document.getElementById('cf-label');
+  const label = labelEl.value.trim();
+  if (!label) return;
+  const key = label.toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'');
+  const s = getSettings();
+  const fields = s.customFields || [];
+  if (fields.find(f => f.key === key)) { toast('Field already exists'); return; }
+  fields.push({ key, label });
+  mergeSettings({ customFields: fields });
+  labelEl.value = '';
+  renderCFList();
+  renderCustomFieldInputs();
+}
+
+function removeCustomField(key) {
+  const s = getSettings();
+  mergeSettings({ customFields: (s.customFields||[]).filter(f => f.key !== key) });
+  renderCFList();
+  renderCustomFieldInputs();
+}
+
+function renderCFList() {
+  const s = getSettings();
+  const fields = s.customFields || [];
+  const el = document.getElementById('cf-list');
+  if (!fields.length) { el.innerHTML = '<span class="text-xs text-muted">No custom fields yet.</span>'; return; }
+  el.innerHTML = fields.map(f => `
+    <div class="cf-item">
+      <span>${f.label} <span class="text-xs text-muted">(${f.key})</span></span>
+      <button class="btn btn-sm btn-danger" onclick="removeCustomField('${f.key}')">Remove</button>
+    </div>`).join('');
+}
+
+function renderCustomFieldInputs() {
+  const s = getSettings();
+  const fields = s.customFields || [];
+  const el = document.getElementById('custom-field-inputs');
+  if (!fields.length) { el.innerHTML = ''; return; }
+  el.innerHTML = `<div class="two-col">` + fields.map(f => `
+    <div class="field">
+      <span class="label">${f.label}</span>
+      <input id="cf-val-${f.key}" placeholder="${f.label}">
+    </div>`).join('') + '</div>';
+}
+
+// ── tags ──────────────────────────────────────────────────
+function tagKeydown(e) {
+  if (e.key === 'Enter' || e.key === ',') {
+    e.preventDefault();
+    const val = e.target.value.trim().replace(/,$/, '');
+    if (val) addFormTag(val);
+    e.target.value = '';
+    renderTagSuggestions();
+  }
+}
+
+function addFormTag(tag) {
+  const t = tag.trim();
+  if (!t || formTags.includes(t)) return;
+  formTags.push(t);
+  renderFormTags();
+}
+
+function removeFormTag(tag) {
+  formTags = formTags.filter(t => t !== tag);
+  renderFormTags();
+}
+
+function renderFormTags() {
+  document.getElementById('f-tags-display').innerHTML =
+    formTags.map(t => `<span class="tag">${t}<button class="tag-remove" onclick="removeFormTag('${t}')">×</button></span>`).join('');
+  renderTagSuggestions();
+}
+
+function renderTagSuggestions() {
+  const s = getSettings();
+  const all = s.allTags || [];
+  const input = document.getElementById('f-tag-input')?.value.toLowerCase() || '';
+  const filtered = all.filter(t => !formTags.includes(t) && (!input || t.toLowerCase().includes(input)));
+  document.getElementById('f-tag-suggestions').innerHTML =
+    filtered.slice(0, 12).map(t =>
+      `<span class="tag-sug" onclick="addFormTag('${t}');document.getElementById('f-tag-input').value='';renderTagSuggestions()">${t}</span>`
+    ).join('');
+}
+
+document.addEventListener('input', e => {
+  if (e.target.id === 'f-tag-input') renderTagSuggestions();
+});
+
+function addGlobalTag() {
+  const el = document.getElementById('new-tag');
+  const tag = el.value.trim();
+  if (!tag) return;
+  const s = getSettings();
+  const all = s.allTags || [];
+  if (!all.includes(tag)) {
+    all.push(tag);
+    mergeSettings({ allTags: all });
+  }
+  el.value = '';
+  renderAllTags();
+  renderTagSuggestions();
+}
+
+function removeGlobalTag(tag) {
+  const s = getSettings();
+  mergeSettings({ allTags: (s.allTags||[]).filter(t => t !== tag) });
+  renderAllTags();
+  renderTagSuggestions();
+}
+
+function renderAllTags() {
+  const s = getSettings();
+  const all = (s.allTags || []).sort();
+  document.getElementById('all-tags-display').innerHTML =
+    all.map(t =>
+      `<span class="tag">${t}<button class="tag-remove" onclick="removeGlobalTag('${t}')">×</button></span>`
+    ).join('');
+}
+
+// ── album form ────────────────────────────────────────────
+function cancelEdit() {
+  editingId = null;
+  formTags = [];
+  document.getElementById('edit-id').value = '';
+  document.getElementById('f-artist').value = '';
+  document.getElementById('f-title').value = '';
+  document.getElementById('f-note').value = '';
+  document.getElementById('f-tag-input').value = '';
+  renderFormTags();
+  renderTagSuggestions();
+  document.getElementById('form-panel-title').textContent = 'New Album';
+  document.getElementById('cancel-btn').style.display = 'none';
+  const s = getSettings();
+  (s.customFields||[]).forEach(f => {
+    const el = document.getElementById('cf-val-'+f.key);
+    if (el) el.value = '';
+  });
+}
+
+function editAlbum(id) {
+  const albums = getAlbums();
+  const a = albums.find(x => x.id === id);
+  if (!a) return;
+  editingId = id;
+  formTags = [...(a.tags||[])];
+  document.getElementById('edit-id').value = id;
+  document.getElementById('f-artist').value = a.artist || '';
+  document.getElementById('f-title').value = a.title || '';
+  document.getElementById('f-note').value = a.note || '';
+  document.getElementById('f-tag-input').value = '';
+  renderFormTags();
+  renderTagSuggestions();
+  document.getElementById('form-panel-title').textContent = 'Editing: ' + a.title;
+  document.getElementById('cancel-btn').style.display = '';
+  const s = getSettings();
+  (s.customFields||[]).forEach(f => {
+    const el = document.getElementById('cf-val-'+f.key);
+    if (el) el.value = (a.fields && a.fields[f.key]) || '';
+  });
+  document.getElementById('album-form-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function submitAlbum() {
+  const artist = document.getElementById('f-artist').value.trim();
+  const title = document.getElementById('f-title').value.trim();
+  if (!artist || !title) { toast('Artist and title are required'); return; }
+
+  const note = document.getElementById('f-note').value.trim();
+  const s = getSettings();
+  const fields = {};
+  (s.customFields||[]).forEach(f => {
+    const el = document.getElementById('cf-val-'+f.key);
+    if (el && el.value.trim()) fields[f.key] = el.value.trim();
+  });
+
+  const albums = getAlbums();
+  if (editingId) {
+    const idx = albums.findIndex(a => a.id === editingId);
+    if (idx > -1) albums[idx] = { ...albums[idx], artist, title, tags: [...formTags], note, fields };
+    toast('Album updated ✓');
+  } else {
+    albums.push({ id: uid(), artist, title, tags: [...formTags], note, fields });
+    toast('Album added ✓');
+  }
+  saveAlbums(albums);
+  cancelEdit();
+  renderAlbumList();
+}
+
+function deleteAlbum(id) {
+  if (!confirm('Delete this album?')) return;
+  const albums = getAlbums().filter(a => a.id !== id);
+  saveAlbums(albums);
+  // also remove from listened
+  const l = getListened();
+  delete l[id];
+  saveListened(l);
+  if (editingId === id) cancelEdit();
+  renderAlbumList();
+  toast('Deleted');
+}
+
+function unmarkListened(id) {
+  const l = getListened();
+  delete l[id];
+  saveListened(l);
+  renderAlbumList();
+  toast('Unmarked as listened');
+}
+
+// ── album list ────────────────────────────────────────────
+function renderAlbumList() {
+  const albums = getAlbums();
+  const heard = getListened();
+  const query = document.getElementById('search')?.value.toLowerCase() || '';
+  document.getElementById('album-count').textContent = albums.length;
+
+  const filtered = albums.filter(a =>
+    !query ||
+    a.title.toLowerCase().includes(query) ||
+    a.artist.toLowerCase().includes(query) ||
+    (a.tags||[]).some(t => t.toLowerCase().includes(query))
+  );
+
+  const el = document.getElementById('album-list');
+  if (!filtered.length) {
+    el.innerHTML = '<span class="text-xs text-muted">No albums match.</span>';
+    return;
+  }
+
+  el.innerHTML = filtered.map(a => {
+    const isHeard = !!heard[a.id];
+    const tagsHtml = (a.tags||[]).map(t=>`<span class="tag">${t}</span>`).join('');
+    return `
+      <div class="album-row">
+        <div class="${isHeard ? 'heard-dot' : 'unheard-dot'}" title="${isHeard ? 'Listened' : 'Unheard'}"></div>
+        <div class="album-row-info">
+          <div class="album-row-title">${a.title}</div>
+          <div class="album-row-artist">${a.artist}</div>
+          ${tagsHtml ? `<div class="album-row-tags">${tagsHtml}</div>` : ''}
+        </div>
+        <div class="row gap-sm">
+          ${isHeard ? `<button class="btn btn-sm" onclick="unmarkListened('${a.id}')" title="Unmark listened">↩</button>` : ''}
+          <button class="btn btn-sm" onclick="editAlbum('${a.id}')">Edit</button>
+          <button class="btn btn-sm btn-danger" onclick="deleteAlbum('${a.id}')">✕</button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// ── import / export ───────────────────────────────────────
+function importAlbums() {
+  const raw = document.getElementById('import-area').value.trim();
+  if (!raw) return;
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) throw new Error('Expected an array');
+    const existing = getAlbums();
+    const imported = parsed.map(a => ({
+      id: uid(),
+      artist: a.artist || '',
+      title: a.title || '',
+      tags: a.tags || [],
+      note: a.note || '',
+      fields: a.fields || {},
+    }));
+    saveAlbums([...existing, ...imported]);
+    document.getElementById('import-area').value = '';
+    renderAlbumList();
+    toast(`Imported ${imported.length} album${imported.length===1?'':'s'} ✓`);
+  } catch(e) {
+    toast('Invalid JSON — ' + e.message);
+  }
+}
+
+function exportAlbums() {
+  const albums = getAlbums();
+  document.getElementById('import-area').value = JSON.stringify(albums, null, 2);
+  toast('Exported to text box — copy it out');
+}
+
+function toast(msg) {
+  const t = document.createElement('div');
+  t.className = 'toast'; t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 2200);
+}
+
+init();
+</script>
+</body>
+</html>
