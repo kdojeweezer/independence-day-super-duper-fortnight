@@ -18,14 +18,14 @@ const DEFAULT_SETTINGS = {
 };
 
 const DEFAULT_ALBUMS = [
-  {id:'a1',artist:'Fishmans',title:'Uchu Nippon Setagaya',tags:['Dub','Psych'],note:'Final studio album — introspective and gorgeous.',fields:{}},
-  {id:'a2',artist:'BCNR',title:'Ants From Up There',tags:['Post-Punk','Indie Rock'],note:'More orchestral and devastating than the debut.',fields:{}},
-  {id:'a3',artist:'King Crimson',title:'Red',tags:['Prog Rock'],note:'Raw, heavy masterpiece.',fields:{}},
-  {id:'a4',artist:'Miles Davis',title:'In A Silent Way',tags:['Jazz'],note:'The hinge between acoustic and electric.',fields:{}},
-  {id:'a5',artist:'Elliott Smith',title:'XO',tags:['Indie Rock','Lo-Fi'],note:'Most accessible entry — melodically perfect.',fields:{}},
-  {id:'a6',artist:'Godspeed You! Black Emperor',title:'F#A#∞',tags:['Post-Rock','Experimental'],note:'Raw and cinematic.',fields:{}},
-  {id:'a7',artist:'Can',title:'Tago Mago',tags:['Krautrock','Experimental'],note:'The essential Can album.',fields:{}},
-  {id:'a8',artist:'Nick Drake',title:'Pink Moon',tags:['Folk'],note:'Solo guitar minimalism — devastating and brief.',fields:{}},
+  {id:'a1',artist:'Fishmans',title:'Uchu Nippon Setagaya',tags:['Dub','Psych'],note:'I love this album. Uchū Nippon Setagaya (Japanese: 宇宙 日本 世田谷, lit. Space Japan Setagaya) is the seventh and final studio album by Japanese band Fishmans, released on July 24, 1997 on Polydor Records.',fields:{}},
+  {id:'a2',artist:'BCNR',title:'Ants From Up There',tags:['Post-Punk','Indie Rock'],note:'I love this album.',fields:{}},
+  {id:'a3',artist:'King Crimson',title:'Red',tags:['Prog Rock'],note:'I love this album.',fields:{}},
+  {id:'a4',artist:'Miles Davis',title:'In A Silent Way',tags:['Jazz'],note:'I love this album.',fields:{}},
+  {id:'a5',artist:'Elliott Smith',title:'XO',tags:['Indie Rock','Lo-Fi'],note:'I love this album.',fields:{}},
+  {id:'a6',artist:'Godspeed You! Black Emperor',title:'F#A#∞',tags:['Post-Rock','Experimental'],note:'I love this album.',fields:{}},
+  {id:'a7',artist:'Can',title:'Tago Mago',tags:['Krautrock','Experimental'],note:'I love this album.',fields:{}},
+  {id:'a8',artist:'Nick Drake',title:'Pink Moon',tags:['Folk'],note:'I love this album.',fields:{}},
 ];
 
 // ─── helpers ────────────────────────────────────────────────
